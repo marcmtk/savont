@@ -79,8 +79,8 @@ savont asv --pooled-samples sample1.fq.gz sample2.fq.gz  ...
 #### Step 2: download databases and classify ASVs
 
 ```sh
-# download Greengenes, EMU, silva, or UNITE databases
-savont download --location /path/databases --dbs greengenes2-2024.09 emu-1 silva-138.2 unite-10.0
+# download Greengenes, EMU, silva, UNITE, or curated GTDB databases
+savont download --location /path/databases --dbs greengenes2-2024.09 emu-1 silva-138.2 unite-10.0 gtdb-r232
 
 # classify against any database
 savont classify -i savont-out -d /path/databases/emu-1 -t 20
@@ -158,11 +158,12 @@ Savont can also classify ASVs and generate a taxonomic profile with abundances. 
 ### Step 1: Download a reference database
 
 ```sh
-# Download one or more databases (emu-1, silva-138.2, greengenes2-2024.09, unite-10.0)
+# Download one or more databases (emu-1, silva-138.2, greengenes2-2024.09, unite-10.0, gtdb-r232)
 savont download --location /path/databases --dbs emu-1
 savont download --location /path/databases --dbs silva-138.2
 savont download --location /path/databases --dbs greengenes2-2024.09
 savont download --location /path/databases --dbs unite-10.0
+savont download --location /path/databases --dbs gtdb-r232
 
 # Or download multiple at once
 savont download --location /path/databases --dbs emu-1 silva-138.2
@@ -174,6 +175,7 @@ savont download --location /path/databases --dbs emu-1 silva-138.2
 # Classify using any downloaded database (type is auto-detected)
 savont classify -i savont-out -d databases/emu-1 -t 20
 savont classify -i savont-out -d databases/silva-138.2 -t 20
+savont classify -i savont-out -d databases/gtdb-r232 -t 20
 
 # Adjust identity thresholds
 savont classify -i savont-out -d databases/emu-1 \
@@ -307,6 +309,12 @@ GreenGenes2 2024.09 species-level trainset (DADA2 format). Unannotated ranks are
 
 [UNITE](https://unite.ut.ee/) 10.0 general release (February 2025) — dynamic divergence thresholding, all eukaryotes. Covers ITS1/ITS2 across fungi and other eukaryotes. Use this database when classifying ITS amplicons rather than 16S/18S rRNA. Unannotated ranks are reported as `UNITE_unannotated`.
 
+### GTDB (`gtdb-r232`)
+
+The SBDI Sativa curated 16S database for GTDB R11-RS232. Savont downloads the
+20-genomes-per-species FASTA with original GTDB sequence names and taxonomy.
+An unpacked SBDI directory is also auto-detected from that FASTA file name.
+
 ### CHANGELOG
 
 See [the changelog.](CHANGELOG.md)
@@ -324,6 +332,8 @@ Jim Shaw, Marie Riisgaard-Jensen, Kasper Skytte Andersen, Rasmus Kirkegaard, Mor
 3. McDonald, D., Jiang, Y., Balaban, M. et al. Greengenes2 unifies microbial data in a single reference tree. Nat Biotechnol 42, 715–718 (2024).
 
 4. Abarenkov, Kessy; Zirk, Allan; Piirmann, Timo; Pöhönen, Raivo; Ivanov, Filipp; Nilsson, R. Henrik; Kõljalg, Urmas (2025): UNITE general FASTA release for eukaryotes. Version 19.02.2025. UNITE Community. https://doi.org/10.15156/BIO/3301231 
+
+5. Swedish Biodiversity Infrastructure (SBDI; 2021). SBDI Sativa curated 16S GTDB database. https://doi.org/10.17044/scilifelab.14869077
 
 **If you use the SINTAX algorithm please cite**: Edgar, Robert C. "SINTAX: a simple non-Bayesian taxonomy classifier for 16S and ITS sequences." biorxiv (2016): 074161.
 

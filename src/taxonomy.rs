@@ -218,23 +218,45 @@ impl Database {
         Ok(taxonomy)
     }
 
-    /// Load GTDB r232 SSU database from a directory containing ssu_all_r232.fna.gz
+    /// Load a GTDB R232 SSU database from raw GTDB-header FASTA files.
+    ///
+    /// This supports both GTDB's `ssu_all_r232.fna.gz` and SBDI Sativa's
+    /// curated `*.20genomes.fna.gz`. DADA2 `assignTaxonomy`/`addSpecies`
+    /// files use different headers and are deliberately ignored.
     pub fn load_gtdb(db_dir: &Path) -> Result<Self, std::io::Error> {
-        let fasta_path = std::fs::read_dir(db_dir)?
+        let mut fasta_candidates: Vec<PathBuf> = std::fs::read_dir(db_dir)?
             .filter_map(|e| e.ok())
             .map(|e| e.path())
-            .find(|p| {
+            .filter(|p| {
                 p.file_name().and_then(|n| n.to_str()).map_or(false, |n| {
-                    n.ends_with(".fna.gz")
+                    let is_fasta = n.ends_with(".fna.gz")
                         || n.ends_with(".fna")
                         || n.ends_with(".fa.gz")
-                        || n.ends_with(".fasta.gz")
+                        || n.ends_with(".fasta.gz");
+                    is_fasta && !n.contains(".assignTaxonomy.") && !n.contains(".addSpecies.")
                 })
             })
+            .collect();
+        fasta_candidates.sort();
+
+        let fasta_path = fasta_candidates
+            .iter()
+            .find(|p| {
+                p.file_name().and_then(|n| n.to_str()).map_or(false, |n| {
+                    n.starts_with("ssu_all_")
+                        || n.ends_with(".20genomes.fna.gz")
+                        || n.ends_with(".20genomes.fna")
+                })
+            })
+            .or_else(|| fasta_candidates.first())
+            .cloned()
             .ok_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("No .fna.gz FASTA file found in {}", db_dir.display()),
+                    format!(
+                        "No raw-header GTDB FASTA file found in {}",
+                        db_dir.display()
+                    ),
                 )
             })?;
 

@@ -28,7 +28,7 @@ pub enum Commands {
     #[command(name = "classify")]
     Classify(ClassifyArgs),
 
-    /// Download reference databases for savont (EMU, SILVA, GreenGenes2, or UNITE)
+    /// Download reference databases for savont (EMU, SILVA, GreenGenes2, UNITE, or GTDB)
     #[command(name = "download")]
     Download(DownloadArgs),
 
