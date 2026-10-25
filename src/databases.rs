@@ -4,7 +4,13 @@ use std::process::Command;
 
 const MARKER_FILE: &str = ".savont_db";
 /// Flat keyword list used by the CLI `possible_values` validator.
-pub const KEYWORDS: &[&str] = &["emu-1", "silva-138.2", "greengenes2-2024.09", "unite-10.0"];
+pub const KEYWORDS: &[&str] = &[
+    "emu-1",
+    "silva-138.2",
+    "greengenes2-2024.09",
+    "unite-10.0",
+    "gtdb-r232",
+];
 
 /// Describes one versioned database: how to download it, load it, and extract
 /// a lookup key from a minimap2 target-name string.
@@ -46,6 +52,13 @@ pub const ALL: &[DatabaseDef] = &[
         load: Database::load_unite,
         extract_key: taxonomy::extract_unite_key_from_header,
     },
+    DatabaseDef {
+        keyword: KEYWORDS[4],
+        description: "SBDI Sativa curated 16S GTDB R11-RS232 database",
+        download: download_gtdb,
+        load: Database::load_gtdb,
+        extract_key: taxonomy::extract_gtdb_key_from_header,
+    },
 ];
 
 /// Look up a database definition by keyword.
@@ -74,35 +87,53 @@ pub fn read_marker(dir: &Path) -> Option<String> {
 
 // ── database loader ──────────────────────────────────────────────────────────
 
-/// Auto-detect the database type from the directory (marker file, then
-/// basename), look it up in the registry, and load it.
+/// Auto-detect the database type from the directory (marker file, basename,
+/// then known file names), look it up in the registry, and load it.
 pub fn load_database(dir: &Path) -> Result<Database, std::io::Error> {
-    let keyword = read_marker(dir)
-        .or_else(|| {
-            dir.file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.to_string())
-        })
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Cannot determine database type for '{}'", dir.display()),
-            )
-        })?;
+    let marker = read_marker(dir);
+    let basename = dir.file_name().and_then(|n| n.to_str());
 
-    let def = find(&keyword).ok_or_else(|| {
+    let def = if let Some(keyword) = marker.as_deref() {
+        find(keyword)
+    } else {
+        basename
+            .and_then(find)
+            .or_else(|| detect_from_contents(dir))
+    }
+    .ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!(
-                "Unknown database keyword '{}'. Available: {}",
-                keyword,
+                "Cannot determine database type for '{}'. Available: {}",
+                dir.display(),
                 keyword_list()
             ),
         )
     })?;
 
-    log::info!("Detected database type '{}' for {}", keyword, dir.display());
+    log::info!(
+        "Detected database type '{}' for {}",
+        def.keyword,
+        dir.display()
+    );
     (def.load)(dir)
+}
+
+/// Recognize database directories which predate Savont's marker file.  The
+/// curated SBDI archive has a fixed directory name only by convention, so use
+/// its raw-header FASTA name as the reliable signal.
+fn detect_from_contents(dir: &Path) -> Option<&'static DatabaseDef> {
+    let has_gtdb_fasta = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .any(|name| {
+            name.starts_with("ssu_all_")
+                || name.ends_with(".20genomes.fna.gz")
+                || name.ends_with(".20genomes.fna")
+        });
+
+    has_gtdb_fasta.then(|| find("gtdb-r232")).flatten()
 }
 
 // ── download functions ───────────────────────────────────────────────────────
@@ -198,6 +229,25 @@ fn download_gg2(dest: &Path) -> Result<(), String> {
         .map_err(|e| format!("wget failed: {}", e))?;
     if !s.success() {
         return Err("wget returned non-zero for GreenGenes2 download".into());
+    }
+
+    Ok(())
+}
+
+fn download_gtdb(dest: &Path) -> Result<(), String> {
+    log::info!("Downloading the SBDI Sativa curated 16S GTDB R11-RS232 database...");
+    const FILE_NAME: &str = "sbdi-gtdb-sativa.r11rs232-1.20genomes.fna.gz";
+    const URL: &str = "https://ndownloader.figshare.com/files/64711221";
+
+    let output = dest.join(FILE_NAME);
+    let status = Command::new("wget")
+        .arg(URL)
+        .arg("-O")
+        .arg(&output)
+        .status()
+        .map_err(|e| format!("wget failed: {}", e))?;
+    if !status.success() {
+        return Err("wget returned non-zero for GTDB download".into());
     }
 
     Ok(())

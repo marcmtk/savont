@@ -333,6 +333,59 @@ g__Thermoproteus;s__Thermoproteus tenax [location=1..1200] [ssu_len=1200]"
     assert_eq!(archaea.species, "Thermoproteus tenax");
 }
 
+/// The public registry and content auto-detection expose the bundled SBDI
+/// flavor of GTDB without requiring a hand-written marker file.
+#[test]
+fn test_gtdb_registry_and_content_detection() {
+    use std::io::Write;
+
+    assert!(savont::databases::KEYWORDS.contains(&"gtdb-r232"));
+    let def = savont::databases::find("gtdb-r232").expect("GTDB missing from registry");
+    assert_eq!(def.keyword, "gtdb-r232");
+
+    let tmp = TempDir::new().unwrap();
+    // This DADA2 file sorts first but must not be selected by the GTDB loader.
+    let mut dada = fs::File::create(tmp.path().join(
+        "sbdi-gtdb-sativa.r11rs232-1.1genome.assignTaxonomy.fna",
+    )).unwrap();
+    writeln!(dada, ">Bacteria;Bacteria;Pseudomonadota").unwrap();
+    writeln!(dada, "AAAA").unwrap();
+
+    let mut raw = fs::File::create(tmp.path().join(
+        "sbdi-gtdb-sativa.r11rs232-1.20genomes.fna",
+    )).unwrap();
+    writeln!(raw, ">GTDB_REF d__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;\
+o__Enterobacterales;f__Enterobacteriaceae;g__Escherichia;s__Escherichia coli").unwrap();
+    writeln!(raw, "ACGT").unwrap();
+
+    let db = savont::databases::load_database(tmp.path())
+        .expect("failed to auto-detect curated GTDB database");
+    assert!(db.fasta_path.ends_with("sbdi-gtdb-sativa.r11rs232-1.20genomes.fna"));
+    assert_eq!(db.taxonomy["GTDB_REF"].species, "Escherichia coli");
+}
+
+/// Full reference smoke test. Ignored by default because parsing the
+/// 181k-sequence archive is substantially heavier than the synthetic test.
+/// Reads the database from `$SAVONT_GTDB_DB`, else `~/databases/sbdi-gtdb`.
+#[test]
+#[ignore]
+fn test_load_bundled_sbdi_gtdb() {
+    let db_dir = std::env::var_os("SAVONT_GTDB_DB")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("HOME").expect("HOME not set"))
+                .join("databases/sbdi-gtdb")
+        });
+    let db = savont::databases::load_database(&db_dir)
+        .expect("failed to load SBDI GTDB database");
+
+    assert!(db.fasta_path.ends_with(
+        "sbdi-gtdb-sativa.r11rs232-1.20genomes.fna.gz",
+    ));
+    assert_eq!(db.taxonomy.len(), 181_562);
+    assert!(db.taxonomy.values().all(|entry| !entry.superkingdom.is_empty()));
+}
+
 // ── merge tests ───────────────────────────────────────────────────────────────
 
 /// Run `savont asv` on both zymo replicates, merge them, and verify the ASV
